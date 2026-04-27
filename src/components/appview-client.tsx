@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
+import { ITEM_DESCRIPTIONS } from "@/lib/item-descriptions";
 import {
   STORAGE_KEYS,
   fetchMenuData,
@@ -33,8 +34,11 @@ function readCart(): CartItem[] {
   }
 }
 
+function getCartCount(): number {
+  return readCart().reduce((s, i) => s + i.qty, 0);
+}
+
 export function AppViewClient() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const itemId = searchParams.get("id");
   const [menuData, setMenuData] = useState<MenuData | null>(null);
@@ -42,6 +46,16 @@ export function AppViewClient() {
   const [currency, setCurrency] = useState("ETB");
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [liveStatus, setLiveStatus] = useState<MenuStatusMap>({});
+  const [cartCount, setCartCount] = useState(0);
+  const [addedToast, setAddedToast] = useState(false);
+
+  // Sync cart badge count on mount and whenever window regains focus
+  useEffect(() => {
+    const syncCount = () => setCartCount(getCartCount());
+    syncCount();
+    window.addEventListener("focus", syncCount);
+    return () => window.removeEventListener("focus", syncCount);
+  }, []);
 
   useEffect(() => {
     fetchMenuData().then(setMenuData).catch(() => null);
@@ -90,11 +104,8 @@ export function AppViewClient() {
     return `/appview?${nextParams.toString()}`;
   };
 
-  // Use router.push (not replace) for prev/next so each navigation adds to the browser
-  // history stack. This lets the Android hardware back button traverse items in reverse.
-  // When the user reaches the first item and hits back, the browser naturally goes to home.
   const goToItem = (targetItem: { id: string; category: string }) => {
-    router.replace(buildItemHref(targetItem.id, targetItem.category));
+    window.location.href = buildItemHref(targetItem.id, targetItem.category);
   };
 
   const addToCart = () => {
@@ -124,23 +135,56 @@ export function AppViewClient() {
     }
 
     window.localStorage.setItem(STORAGE_KEYS.cart, JSON.stringify(current));
-    router.replace("/", { scroll: false });
+    // Update badge immediately without leaving the page
+    setCartCount(current.reduce((s, i) => s + i.qty, 0));
+    // Show confirmation toast
+    setAddedToast(true);
+    window.setTimeout(() => setAddedToast(false), 2000);
   };
+
+  // Get description: from Sanity field first, then from local library, then generic fallback
+  const itemDescription = item
+    ? (item.description ? getLocalizedText(item.description, lang) : null)
+      ?? ITEM_DESCRIPTIONS[item.id]
+      ?? "A carefully crafted item made with quality ingredients. Ask our staff for more details."
+    : null;
 
   return (
     <main className="smart-detail-page">
       <div className="detail-app-bar">
-        {/* The ← back arrow always goes directly to home without forcing scroll to top */}
         <Link href="/" className="back-btn-round" scroll={false}>
           <i className="fas fa-arrow-left" />
         </Link>
         <div className="detail-brand-name">
           {menuData?.settings.restaurant_name?.toUpperCase() ?? "SHARAF HOTEL"}
         </div>
-        <button className="cart-btn-round" onClick={() => router.replace("/", { scroll: false })}>
+        <Link href="/" scroll={false} style={{ position: "relative", display: "inline-flex" }} className="cart-btn-round">
           <i className="fas fa-shopping-bag" />
-        </button>
+          {cartCount > 0 && (
+            <span style={{
+              position: "absolute", top: "-6px", right: "-6px",
+              background: "#facc15", color: "#000", borderRadius: "50%",
+              width: "18px", height: "18px", fontSize: "11px",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontWeight: 700, lineHeight: 1,
+            }}>{cartCount}</span>
+          )}
+        </Link>
       </div>
+
+      {/* Added-to-cart confirmation toast */}
+      {addedToast && (
+        <div style={{
+          position: "fixed", bottom: "90px", left: "50%", transform: "translateX(-50%)",
+          background: "#22c55e", color: "#fff", padding: "10px 22px",
+          borderRadius: "24px", fontWeight: 600, fontSize: "0.95rem",
+          zIndex: 9999, boxShadow: "0 4px 16px rgba(0,0,0,0.2)",
+          display: "flex", alignItems: "center", gap: "8px",
+          whiteSpace: "nowrap",
+        }}>
+          <i className="fas fa-check-circle" /> Added to cart!
+        </div>
+      )}
 
       {!item ? (
         <div className="empty-state">Loading item...</div>
@@ -206,10 +250,8 @@ export function AppViewClient() {
               ) : null}
             </div>
 
-            {/* Description placeholder, normally loaded from item.description if added to menu-data.json */}
             <p className="immersive-description">
-               {/* @ts-expect-error adding optional description */}
-               {item.description ? getLocalizedText(item.description, lang) : "A delightful dish crafted with fresh ingredients perfectly portioned for your enjoyment. Ask your server for more details."}
+              {itemDescription}
             </p>
 
             <button type="button" className="immersive-add-btn" onClick={addToCart}>

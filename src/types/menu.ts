@@ -30,6 +30,7 @@ export type MenuItem = {
   type: "veg" | "non-veg";
   is_4d: boolean;
   title: LocalizedText;
+  description?: LocalizedText;
   ingredients: MenuIngredient[];
   formatted_price: string;
   image?: string;

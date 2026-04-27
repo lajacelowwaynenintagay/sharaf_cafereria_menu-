@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
+import { ITEM_DESCRIPTIONS } from "@/lib/item-descriptions";
+
 import {
   BRAND_NAME,
   CURRENCY_LIST,
@@ -182,6 +184,20 @@ export function SmartMenuPage() {
       btn.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
     }
   }, [currentCategory]);
+
+  // Re-sync cart from localStorage whenever window regains focus (e.g. returning from item detail).
+  // The component stays mounted during SPA navigation so the initial mount effect doesn't re-run.
+  useEffect(() => {
+    const syncCart = () => setCart(loadCart());
+    window.addEventListener("focus", syncCart);
+    // Also handle the visibilitychange event for mobile browsers
+    const onVisible = () => { if (document.visibilityState === "visible") syncCart(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("focus", syncCart);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, []);
 
   // Restore home scroll position when returning from an item page
   useEffect(() => {
@@ -613,6 +629,16 @@ export function SmartMenuPage() {
                       .map((badge) => renderSpecialBadge(badge))}
                   </div>
                   <div className="dish-name">{title}</div>
+                  {(() => {
+                    const desc = item.description
+                      ? getLocalizedText(item.description, lang)
+                      : ITEM_DESCRIPTIONS[item.id];
+                    return desc ? (
+                      <div className="dish-desc" style={{ fontSize: "0.82rem", color: "var(--text-secondary)", margin: "4px 0 2px", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden", textOverflow: "ellipsis", lineHeight: "1.45" }}>
+                        {desc}
+                      </div>
+                    ) : null;
+                  })()}
                   <div className="dish-cal">
                     {calories}
                     {" "}
