@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { ITEM_DESCRIPTIONS } from "@/lib/item-descriptions";
@@ -39,6 +39,7 @@ function getCartCount(): number {
 }
 
 export function AppViewClient() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const itemId = searchParams.get("id");
   const [menuData, setMenuData] = useState<MenuData | null>(null);
@@ -49,12 +50,9 @@ export function AppViewClient() {
   const [cartCount, setCartCount] = useState(0);
   const [addedToast, setAddedToast] = useState(false);
 
-  // Sync cart badge count on mount and whenever window regains focus
+  // Sync cart badge on mount
   useEffect(() => {
-    const syncCount = () => setCartCount(getCartCount());
-    syncCount();
-    window.addEventListener("focus", syncCount);
-    return () => window.removeEventListener("focus", syncCount);
+    setCartCount(getCartCount());
   }, []);
 
   useEffect(() => {
@@ -77,12 +75,8 @@ export function AppViewClient() {
 
   useEffect(() => {
     fetchMenuStatus()
-      .then((value) => {
-        setLiveStatus(value);
-      })
-      .catch(() => {
-        setLiveStatus({});
-      });
+      .then((value) => { setLiveStatus(value); })
+      .catch(() => { setLiveStatus({}); });
   }, []);
 
   const item = useMemo(
@@ -98,14 +92,15 @@ export function AppViewClient() {
   const status = item ? liveStatus[item.id] : undefined;
 
   const buildItemHref = (targetId: string, targetCategory: string) => {
-    const nextParams = new URLSearchParams();
-    nextParams.set("id", targetId);
-    nextParams.set("cat", targetCategory);
-    return `/appview?${nextParams.toString()}`;
+    const p = new URLSearchParams();
+    p.set("id", targetId);
+    p.set("cat", targetCategory);
+    return `/appview?${p.toString()}`;
   };
 
+  // SPA navigation — only the URL changes, component stays mounted, no full page reload
   const goToItem = (targetItem: { id: string; category: string }) => {
-    window.location.href = buildItemHref(targetItem.id, targetItem.category);
+    router.replace(buildItemHref(targetItem.id, targetItem.category));
   };
 
   const addToCart = () => {
@@ -128,21 +123,17 @@ export function AppViewClient() {
         category: item.category,
       });
     } else {
-      current[index] = {
-        ...current[index],
-        qty: current[index].qty + 1,
-      };
+      current[index] = { ...current[index], qty: current[index].qty + 1 };
     }
 
     window.localStorage.setItem(STORAGE_KEYS.cart, JSON.stringify(current));
-    // Update badge immediately without leaving the page
-    setCartCount(current.reduce((s, i) => s + i.qty, 0));
-    // Show confirmation toast
+    const newCount = current.reduce((s, i) => s + i.qty, 0);
+    setCartCount(newCount);
     setAddedToast(true);
     window.setTimeout(() => setAddedToast(false), 2000);
   };
 
-  // Get description: from Sanity field first, then from local library, then generic fallback
+  // Description: Sanity field → local library → generic fallback
   const itemDescription = item
     ? (item.description ? getLocalizedText(item.description, lang) : null)
       ?? ITEM_DESCRIPTIONS[item.id]
@@ -158,7 +149,13 @@ export function AppViewClient() {
         <div className="detail-brand-name">
           {menuData?.settings.restaurant_name?.toUpperCase() ?? "SHARAF HOTEL"}
         </div>
-        <Link href="/" scroll={false} style={{ position: "relative", display: "inline-flex" }} className="cart-btn-round">
+        {/* Cart button: go to home AND open the cart panel */}
+        <Link
+          href="/?openCart=1"
+          scroll={false}
+          className="cart-btn-round"
+          style={{ position: "relative", display: "inline-flex" }}
+        >
           <i className="fas fa-shopping-bag" />
           {cartCount > 0 && (
             <span style={{
@@ -232,14 +229,14 @@ export function AppViewClient() {
               <span className="immersive-price">
                 {typeof status?.offer === "number" && status.offer > 0 ? (
                   <>
-                     <span className="old-price">
-                       {formatMoney(status?.price ?? item.price, currency)}
-                     </span>
-                     {formatMoney(
-                       (status?.price ?? item.price) -
-                         (status?.price ?? item.price) * (status.offer / 100),
-                       currency,
-                     )}
+                    <span className="old-price">
+                      {formatMoney(status?.price ?? item.price, currency)}
+                    </span>
+                    {formatMoney(
+                      (status?.price ?? item.price) -
+                        (status?.price ?? item.price) * (status.offer / 100),
+                      currency,
+                    )}
                   </>
                 ) : (
                   formatMoney(status?.price ?? item.price, currency)
@@ -250,16 +247,14 @@ export function AppViewClient() {
               ) : null}
             </div>
 
-            <p className="immersive-description">
-              {itemDescription}
-            </p>
+            <p className="immersive-description">{itemDescription}</p>
 
             <button type="button" className="immersive-add-btn" onClick={addToCart}>
               ADD TO ORDER
             </button>
 
             <div className="tap-review-text">
-               TAP TO REVIEW <i className="fas fa-chevron-up" />
+              TAP TO REVIEW <i className="fas fa-chevron-up" />
             </div>
           </div>
         </div>
