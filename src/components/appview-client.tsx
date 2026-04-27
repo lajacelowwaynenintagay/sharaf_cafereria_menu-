@@ -134,11 +134,17 @@ export function AppViewClient() {
   };
 
   // Description: Sanity field → local library → generic fallback
-  const itemDescription = item
-    ? (item.description ? getLocalizedText(item.description, lang) : null)
-      ?? ITEM_DESCRIPTIONS[item.id]
-      ?? "A carefully crafted item made with quality ingredients. Ask our staff for more details."
-    : null;
+  let itemDescription = null;
+  if (item) {
+    const sanityDesc = item.description ? getLocalizedText(item.description, lang).trim() : "";
+    if (sanityDesc) {
+      itemDescription = sanityDesc;
+    } else if (ITEM_DESCRIPTIONS[item.id]) {
+      itemDescription = ITEM_DESCRIPTIONS[item.id];
+    } else {
+      itemDescription = "A carefully crafted item made with quality ingredients. Ask our staff for more details.";
+    }
+  }
 
   return (
     <main className="smart-detail-page">
