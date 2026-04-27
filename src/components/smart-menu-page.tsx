@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   BRAND_NAME,
@@ -243,7 +243,12 @@ export function SmartMenuPage() {
     safeStorageSet(STORAGE_KEYS.layout, layout);
   }, [layout]);
 
+  const isInitialCartMount = useRef(true);
   useEffect(() => {
+    if (isInitialCartMount.current) {
+      isInitialCartMount.current = false;
+      return;
+    }
     saveCart(cart);
   }, [cart]);
 
